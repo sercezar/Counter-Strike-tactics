@@ -3,12 +3,19 @@ using System.Collections;
 
 public class Gun : MonoBehaviour
 {
-    public float range = 100f;       // Zasięg strzału
-    public int damage = 50;          // Obrażenia
-    public float force = 500f;       // Siła uderzenia
+    public float range = 100f;
+    public int damage = 50;
 
-    public Camera fpsCamera;         // Kamera FPS
-    public LineRenderer lineRenderer; // LineRenderer lasera
+    public Camera fpsCamera;
+    public LineRenderer lineRenderer;
+
+    [Header("Efekty")]
+    public GameObject bloodDecal;   // 🩸 plama krwi na ciele
+    public GameObject deathBloodEffect;
+
+    [Header("Dźwięk")]
+    public AudioSource audioSource;
+    public AudioClip headshotSound;
 
     void Start()
     {
@@ -18,8 +25,6 @@ public class Gun : MonoBehaviour
         if (lineRenderer != null)
         {
             lineRenderer.enabled = false;
-
-            // 🔴 Ustawienie koloru lasera na czerwony
             lineRenderer.startColor = Color.red;
             lineRenderer.endColor = Color.red;
         }
@@ -27,11 +32,8 @@ public class Gun : MonoBehaviour
 
     void Update()
     {
-        // Lewy przycisk myszy
         if (Input.GetMouseButtonDown(0))
-        {
             Shoot();
-        }
     }
 
     void Shoot()
@@ -40,36 +42,66 @@ public class Gun : MonoBehaviour
 
         Vector3 origin = fpsCamera.transform.position;
         Vector3 direction = fpsCamera.transform.forward;
-        Vector3 endPoint;
+
+        Vector3 endPoint = origin + direction * range;
 
         if (Physics.Raycast(origin, direction, out hit, range))
         {
-            Debug.Log("Trafiono: " + hit.transform.name);
             endPoint = hit.point;
 
-            // 💥 OBRAŻENIA
             EnemyHealth enemy = hit.collider.GetComponentInParent<EnemyHealth>();
+
             if (enemy != null)
             {
-                enemy.TakeDamage(damage);
-            }
+                bool isHead = hit.collider.CompareTag("Head");
 
-            // 💥 SIŁA UDERZENIA
-            Rigidbody rb = hit.collider.GetComponentInParent<Rigidbody>();
-            if (rb != null)
-            {
-                rb.AddForceAtPosition(direction * force, hit.point);
+                enemy.TakeDamage(isHead ? damage * 2 : damage);
+
+                // 🎯 HEADSHOT
+                if (isHead)
+                {
+                    if (audioSource != null && headshotSound != null)
+                        audioSource.PlayOneShot(headshotSound);
+                }
+                else
+                {
+                    // 🩸 BLOOD DECAL TYLKO NA CIAŁO
+                    SpawnBloodDecal(hit);
+                }
+
+                // 💀 KREW PRZY ŚMIERCI
+                if (enemy.IsDead())
+                {
+                    SpawnDeathBlood(hit.point);
+                }
             }
         }
-        else
-        {
-            endPoint = origin + direction * range;
-        }
 
-        // 🔴 WYŚWIETLENIE LASERA
         if (lineRenderer != null)
         {
             StartCoroutine(ShowLaser(origin, endPoint));
+        }
+    }
+
+    void SpawnBloodDecal(RaycastHit hit)
+    {
+        if (bloodDecal == null) return;
+
+        Quaternion rot = Quaternion.LookRotation(hit.normal);
+
+        Vector3 pos = hit.point + hit.normal * 0.01f; // żeby nie wchodziło w model
+
+        GameObject decal = Instantiate(bloodDecal, pos, rot);
+
+        Destroy(decal, 10f); // usuwa po czasie
+    }
+
+    void SpawnDeathBlood(Vector3 pos)
+    {
+        if (deathBloodEffect != null)
+        {
+            GameObject fx = Instantiate(deathBloodEffect, pos, Quaternion.identity);
+            Destroy(fx, 3f);
         }
     }
 
@@ -79,7 +111,7 @@ public class Gun : MonoBehaviour
         lineRenderer.SetPosition(0, start);
         lineRenderer.SetPosition(1, end);
 
-        yield return new WaitForSeconds(0.05f); // laser świeci krótko
+        yield return new WaitForSeconds(0.05f);
 
         lineRenderer.enabled = false;
     }

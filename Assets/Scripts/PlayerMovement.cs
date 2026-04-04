@@ -3,26 +3,32 @@ using UnityEngine;
 public class PlayerMovement : MonoBehaviour
 {
     public CharacterController controller;
-    public Transform playerCamera;
 
+    [Header("Head + Camera")]
+    public Transform head;          // pusty obiekt (głowa)
+    public Transform playerCamera;  // kamera (dziecko head)
+
+    [Header("Ruch")]
     public float normalSpeed = 5f;
     public float crouchSpeed = 2f;
     public float sneakSpeed = 1.5f;
 
+    [Header("Wysokość")]
     public float normalHeight = 2f;
     public float crouchHeight = 1f;
 
-    public float cameraNormalY = 1.8f;
-    public float cameraCrouchY = 1.0f;
+    public float headNormalY = 1.8f;
+    public float headCrouchY = 1.0f;
     public float crouchSmooth = 8f;
 
+    [Header("Skok")]
     public float jumpHeight = 1.5f;
     public float gravity = -9.81f;
 
     [Header("Dźwięk kroków")]
-    public AudioSource audioSource; // ustawiony clip i loop = true
-    public float crouchVolume = 0.5f;
+    public AudioSource audioSource;
     public float normalVolume = 1f;
+    public float crouchVolume = 0.5f;
 
     private float currentSpeed;
     private Vector3 velocity;
@@ -32,11 +38,15 @@ public class PlayerMovement : MonoBehaviour
         if (controller == null)
             controller = GetComponent<CharacterController>();
 
+        // 🔥 kamera zawsze w środku głowy
+        if (playerCamera != null)
+            playerCamera.localPosition = Vector3.zero;
+
+        // audio setup
         if (audioSource != null)
         {
-            audioSource.loop = true; // krok w pętli
+            audioSource.loop = true;
             audioSource.playOnAwake = false;
-            audioSource.volume = normalVolume;
         }
     }
 
@@ -48,12 +58,12 @@ public class PlayerMovement : MonoBehaviour
         bool isCrouching = Input.GetKey(KeyCode.LeftControl);
         bool isSneaking = Input.GetKey(KeyCode.LeftShift);
 
-        // Ustaw prędkość
+        // prędkość
         currentSpeed = normalSpeed;
         if (isCrouching) currentSpeed = crouchSpeed;
         if (isSneaking) currentSpeed = sneakSpeed;
 
-        // KUCANIE
+        // KUCANIE (collider)
         if (isCrouching)
         {
             controller.height = crouchHeight;
@@ -69,7 +79,7 @@ public class PlayerMovement : MonoBehaviour
         Vector3 move = transform.right * x + transform.forward * z;
         controller.Move(move * currentSpeed * Time.deltaTime);
 
-        // SKOK + GRAWITACJA
+        // SKOK
         if (controller.isGrounded && velocity.y < 0)
             velocity.y = -2f;
 
@@ -79,13 +89,14 @@ public class PlayerMovement : MonoBehaviour
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
 
-        // PŁYNNE KUCANIE KAMERY
-        float targetY = isCrouching ? cameraCrouchY : cameraNormalY;
-        Vector3 camPos = playerCamera.localPosition;
-        camPos.y = Mathf.Lerp(camPos.y, targetY, crouchSmooth * Time.deltaTime);
-        playerCamera.localPosition = camPos;
+        // 🎯 RUCH GŁOWY (zamiast kamery!)
+        float targetY = isCrouching ? headCrouchY : headNormalY;
 
-        // 🔊 Dźwięk kroków
+        Vector3 headPos = head.localPosition;
+        headPos.y = Mathf.Lerp(headPos.y, targetY, crouchSmooth * Time.deltaTime);
+        head.localPosition = headPos;
+
+        // 🔊 KROKI (loop tylko przy ruchu)
         HandleFootsteps(x, z, isCrouching, isSneaking);
     }
 
@@ -94,11 +105,14 @@ public class PlayerMovement : MonoBehaviour
         if (controller.isGrounded && (x != 0 || z != 0) && !isSneaking)
         {
             audioSource.volume = isCrouching ? crouchVolume : normalVolume;
-            if (!audioSource.isPlaying) audioSource.Play();
+
+            if (!audioSource.isPlaying)
+                audioSource.Play();
         }
         else
         {
-            if (audioSource.isPlaying) audioSource.Stop();
+            if (audioSource.isPlaying)
+                audioSource.Stop();
         }
     }
 }
