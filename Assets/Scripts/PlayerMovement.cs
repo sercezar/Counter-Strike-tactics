@@ -38,7 +38,6 @@ public class PlayerMovement : MonoBehaviour
         if (controller == null)
             controller = GetComponent<CharacterController>();
 
-        // 🔥 kamera zawsze w środku głowy
         if (playerCamera != null)
             playerCamera.localPosition = Vector3.zero;
 
@@ -81,23 +80,19 @@ public class PlayerMovement : MonoBehaviour
 
         // SKOK
         if (controller.isGrounded && velocity.y < 0)
-            velocity.y = -2f;
+            velocity.y = -0.1f;
 
         if (Input.GetButtonDown("Jump") && controller.isGrounded)
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
 
-        velocity.y += gravity * Time.deltaTime;
-        controller.Move(velocity * Time.deltaTime);
-
-        // 🎯 RUCH GŁOWY (zamiast kamery!)
         float targetY = isCrouching ? headCrouchY : headNormalY;
 
         Vector3 headPos = head.localPosition;
         headPos.y = Mathf.Lerp(headPos.y, targetY, crouchSmooth * Time.deltaTime);
         head.localPosition = headPos;
 
-        // 🔊 KROKI (loop tylko przy ruchu)
         HandleFootsteps(x, z, isCrouching, isSneaking);
+        print(velocity.y);
     }
 
     void HandleFootsteps(float x, float z, bool isCrouching, bool isSneaking)
