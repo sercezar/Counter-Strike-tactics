@@ -1,29 +1,35 @@
 using UnityEngine;
+using System;
 
 public class EnemyHealth : MonoBehaviour
 {
+    [Header("HP")]
     public int maxHealth = 100;
-    int currentHealth;
+    public int currentHealth;
+
+    [Header("Death")]
+    public float destroyTime = 2f;
+
+    public Action onDeath;
 
     void Start()
     {
         currentHealth = maxHealth;
     }
 
-    public void TakeDamage(int dmg)
+    public void TakeDamage(int damage)
     {
-        currentHealth -= dmg;
+        currentHealth -= damage;
 
         if (currentHealth <= 0)
         {
-            currentHealth = 0;
-            Destroy(gameObject);
+            Die();
         }
     }
 
-    // 🔥 TO JEST WAŻNE
-    public bool IsDead()
+    void Die()
     {
-        return currentHealth <= 0;
+        onDeath?.Invoke();
+        Destroy(gameObject, destroyTime);
     }
 }

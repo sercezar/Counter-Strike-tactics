@@ -1,54 +1,82 @@
 using UnityEngine;
 using System.Collections;
+using TMPro;
 
 public class Gun : MonoBehaviour
 {
+    [Header("Strzelanie")]
     public float range = 100f;
     public int damage = 50;
+    public float fireRate = 0.1f;
+    public bool isAutomatic = true;
+
+    [Header("Magazynek")]
+    public int magazineSize = 30;
+    public int currentAmmo;
+    public float reloadTime = 1.5f;
+    private bool isReloading = false;
+
+    [Header("Dźwięki")]
+    public AudioClip reloadSound;
+    public AudioClip headshotSound;
+
+    [Header("Krew")]
+    public GameObject bloodHitEffect;
+    public GameObject bloodDeathEffect;
+
+    [Header("Animacja")]
+    public Animator gunAnimator;
+
+    [Header("UI")]
+    public TextMeshProUGUI ammoText;
 
     public Camera fpsCamera;
-    public LineRenderer lineRenderer;
+    private AudioSource audioSource;
 
-    [Header("Efekty")]
-    public GameObject bloodDecal;   // 🩸 plama krwi na ciele
-    public GameObject deathBloodEffect;
-
-    [Header("Dźwięk")]
-    public AudioSource audioSource;
-    public AudioClip headshotSound;
+    float nextTimeToFire = 0f;
 
     void Start()
     {
+        currentAmmo = magazineSize;
+
         if (fpsCamera == null)
             fpsCamera = GetComponentInParent<Camera>();
 
-        if (lineRenderer != null)
-        {
-            lineRenderer.enabled = false;
-            lineRenderer.startColor = Color.red;
-            lineRenderer.endColor = Color.red;
-        }
+        audioSource = GetComponent<AudioSource>();
+
+        UpdateAmmoUI();
     }
 
     void Update()
     {
-        if (Input.GetMouseButtonDown(0))
-            Shoot();
+        if (Input.GetKeyDown(KeyCode.R) && !isReloading && currentAmmo < magazineSize)
+        {
+            StartCoroutine(Reload());
+            return;
+        }
+
+        if (isReloading) return;
+
+        if (isAutomatic ? Input.GetMouseButton(0) : Input.GetMouseButtonDown(0))
+        {
+            if (Time.time >= nextTimeToFire && currentAmmo > 0)
+            {
+                nextTimeToFire = Time.time + fireRate;
+
+                Shoot();
+
+                currentAmmo--;
+                UpdateAmmoUI();
+            }
+        }
     }
 
     void Shoot()
     {
         RaycastHit hit;
 
-        Vector3 origin = fpsCamera.transform.position;
-        Vector3 direction = fpsCamera.transform.forward;
-
-        Vector3 endPoint = origin + direction * range;
-
-        if (Physics.Raycast(origin, direction, out hit, range))
+        if (Physics.Raycast(fpsCamera.transform.position, fpsCamera.transform.forward, out hit, range))
         {
-            endPoint = hit.point;
-
             EnemyHealth enemy = hit.collider.GetComponentInParent<EnemyHealth>();
 
             if (enemy != null)
@@ -57,62 +85,45 @@ public class Gun : MonoBehaviour
 
                 enemy.TakeDamage(isHead ? damage * 2 : damage);
 
-                // 🎯 HEADSHOT
-                if (isHead)
+                if (isHead && headshotSound != null)
+                    audioSource.PlayOneShot(headshotSound);
+
+                if (bloodHitEffect != null)
                 {
-                    if (audioSource != null && headshotSound != null)
-                        audioSource.PlayOneShot(headshotSound);
-                }
-                else
-                {
-                    // 🩸 BLOOD DECAL TYLKO NA CIAŁO
-                    SpawnBloodDecal(hit);
+                    GameObject fx = Instantiate(bloodHitEffect, hit.point, Quaternion.LookRotation(hit.normal));
+                    Destroy(fx, 3f);
                 }
 
-                // 💀 KREW PRZY ŚMIERCI
-                if (enemy.IsDead())
+                if (enemy.currentHealth <= 0 && bloodDeathEffect != null)
                 {
-                    SpawnDeathBlood(hit.point);
+                    GameObject fx = Instantiate(bloodDeathEffect, hit.point, Quaternion.identity);
+                    Destroy(fx, 3f);
                 }
             }
         }
-
-        if (lineRenderer != null)
-        {
-            StartCoroutine(ShowLaser(origin, endPoint));
-        }
     }
 
-    void SpawnBloodDecal(RaycastHit hit)
+    IEnumerator Reload()
     {
-        if (bloodDecal == null) return;
+        isReloading = true;
 
-        Quaternion rot = Quaternion.LookRotation(hit.normal);
+        if (gunAnimator != null)
+            gunAnimator.SetTrigger("Reload");
 
-        Vector3 pos = hit.point + hit.normal * 0.01f; // żeby nie wchodziło w model
+        if (reloadSound != null)
+            audioSource.PlayOneShot(reloadSound);
 
-        GameObject decal = Instantiate(bloodDecal, pos, rot);
+        yield return new WaitForSeconds(reloadTime);
 
-        Destroy(decal, 10f); // usuwa po czasie
+        currentAmmo = magazineSize;
+        UpdateAmmoUI();
+
+        isReloading = false;
     }
 
-    void SpawnDeathBlood(Vector3 pos)
+    void UpdateAmmoUI()
     {
-        if (deathBloodEffect != null)
-        {
-            GameObject fx = Instantiate(deathBloodEffect, pos, Quaternion.identity);
-            Destroy(fx, 3f);
-        }
-    }
-
-    IEnumerator ShowLaser(Vector3 start, Vector3 end)
-    {
-        lineRenderer.enabled = true;
-        lineRenderer.SetPosition(0, start);
-        lineRenderer.SetPosition(1, end);
-
-        yield return new WaitForSeconds(0.05f);
-
-        lineRenderer.enabled = false;
+        if (ammoText != null)
+            ammoText.text = currentAmmo + " / " + magazineSize;
     }
 }
